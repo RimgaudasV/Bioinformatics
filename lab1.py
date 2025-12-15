@@ -1,27 +1,23 @@
 import os
 import math
 
-codontab = {
-    'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',    # Serine
+CODON_TABLE = {
+    'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S', 'AGC': 'S', 'AGT': 'S',   # Serine
     'TTC': 'F', 'TTT': 'F',    # Phenylalanine
-    'TTA': 'L', 'TTG': 'L',    # Leucine
+    'TTA': 'L', 'TTG': 'L', 'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',   # Leucine
     'TAC': 'Y', 'TAT': 'Y',    # Tirosine
-    'TAA': '*', 'TAG': '*',    # Stop
+    'TAA': '*', 'TAG': '*', 'TGA': '*',    # Stop
     'TGC': 'C', 'TGT': 'C',    # Cisteine
-    'TGA': '*',    # Stop
     'TGG': 'W',    # Tryptofan
-    'CTA': 'L', 'CTC': 'L', 'CTG': 'L', 'CTT': 'L',    # Leucine
     'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',    # Proline
     'CAC': 'H', 'CAT': 'H',    # Histidine
     'CAA': 'Q', 'CAG': 'Q',    # Glutamine
-    'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R',    # Arginine
+    'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R', 'AGA': 'R', 'AGG': 'R',   # Arginine
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I',    # Isoleucine
     'ATG': 'M',    # Methionine
     'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',    # Threonine
     'AAC': 'N', 'AAT': 'N',    # Asparagine
     'AAA': 'K', 'AAG': 'K',    # Lysine
-    'AGC': 'S', 'AGT': 'S',    # Serine
-    'AGA': 'R', 'AGG': 'R',    # Arginine
     'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',    # Valine
     'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A',    # Alanine
     'GAC': 'D', 'GAT': 'D',    # Aspartic Acid
@@ -29,10 +25,15 @@ codontab = {
     'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G'     # Glycine
 }
 
+FILES = [
+    "mamalian1", "mamalian2", "mamalian3", "mamalian4", 
+    "bacterial1", "bacterial2", "bacterial3", "bacterial4"
+]
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 START_CODONS = ['ATG']
 STOP_CODONS = ['TAA', 'TAG', 'TGA']
-AMINO_ACIDS = sorted(set(codontab.values()) - {'*'})
+AMINO_ACIDS = sorted(set(CODON_TABLE.values()) - {'*'})
 
 def read_file(filename):
     sequences = []
@@ -56,70 +57,53 @@ def reverse_complement(seq):
     return seq.translate(complement)[::-1]
 
 
+# 1-3
+def find_orfs(seq, min_len=100):
+    orfs = []
+    for frame in range(3):
+        start_pos = None
 
-def find_orfs(seq):
-    orfs = [] 
-    seq_len = len(seq)
+        for i in range(frame, len(seq) - 2, 3):
+            codon = seq[i:i+3]
 
-    starts = []
-    for i in range(seq_len - 2):
-        codon = seq[i:i+3]
-        if codon in START_CODONS:
-            starts.append(i)
+            if codon in START_CODONS and start_pos is None:
+                start_pos = i
 
-    stops = []
-    for i in range(seq_len - 2):
-        codon = seq[i:i+3]
-        if codon in STOP_CODONS:
-            stops.append(i)
-
-    for stop_pos in stops:
-
-        candidate_starts = []
-        for s in starts:
-            if s < stop_pos:
-                candidate_starts.append(s)
-
-        valid_starts = []
-        for start_pos in candidate_starts:
-            has_intermediate_stop = False
-            for inter_stop in stops:
-                if start_pos < inter_stop < stop_pos:
-                    has_intermediate_stop = True
-                    break
-            if not has_intermediate_stop:
-                valid_starts.append(start_pos)
-
-        if valid_starts:
-            farthest_start = max(valid_starts)
-            orf_seq = seq[farthest_start:stop_pos + 3]
-
-            if len(orf_seq) >= 100:
-                orfs.append(orf_seq)
+            elif codon in STOP_CODONS and start_pos is not None:
+                orf_seq = seq[start_pos:i+3]
+                if len(orf_seq) >= min_len:
+                    orfs.append(orf_seq)
+                start_pos = None
 
     return orfs
 
 
-def translate_dna(seq):
+# 4
+def convert_to_protein_sequence(orf):
     protein = ''
-    for i in range(0, len(seq) - 2, 3):
-        codon = seq[i:i + 3]
-        amino_acid = codontab.get(codon, 'X')
+    for i in range(0, len(orf) - 2, 3):
+        codon = orf[i:i + 3]
+        amino_acid = CODON_TABLE.get(codon, 'X')
         if amino_acid == '*':
             break
         protein += amino_acid
     return protein
 
-
+# 5
 def codon_frequencies(protein):
     freqs = {aa: 0 for aa in AMINO_ACIDS}
     total = len(protein)
     for aa in protein:
         if aa in freqs:
             freqs[aa] += 1
-    return {aa: freqs[aa] / total if total > 0 else 0 for aa in freqs}
+    for aa in freqs:
+        if total > 0:
+            freqs[aa] = freqs[aa] / total
+        else:
+            freqs[aa] = 0
+    return freqs
 
-
+# 5
 def dicodon_frequencies(protein):
     freqs = {a1 + a2: 0 for a1 in AMINO_ACIDS for a2 in AMINO_ACIDS}
     total = len(protein) - 1 if len(protein) > 1 else 0
@@ -127,23 +111,22 @@ def dicodon_frequencies(protein):
         dc = protein[i:i + 2]
         if dc in freqs:
             freqs[dc] += 1
-    return {dc: freqs[dc] / total if total > 0 else 0 for dc in freqs}
+    for aa in freqs:
+        if total > 0:
+            freqs[aa] = freqs[aa] / total
+        else:
+            freqs[aa] = 0
+    return freqs
 
-
-def euclidean_distance(freqs1, freqs2):
-    keys = sorted(freqs1.keys())
-    s = 0
-    for k in keys:
-        s += (freqs1[k] - freqs2[k]) ** 2
-    return math.sqrt(s)
-
-
-def build_distance_matrix(objects, freq_list):
-    n = len(objects)
+# 6
+def create_distance_matrix(n, freq_list):
     matrix = [[0.0] * n for _ in range(n)]
     for i in range(n):
         for j in range(i + 1, n):
-            dist = euclidean_distance(freq_list[i], freq_list[j])
+            s = 0
+            for k in sorted(freq_list[i].keys()):
+                s += (freq_list[i][k] - freq_list[j][k]) ** 2
+            dist = math.sqrt(s)
             matrix[i][j] = matrix[j][i] = dist
     return matrix
 
@@ -155,11 +138,12 @@ def save_to_file(filename, names, matrix):
             row = ' '.join(f"{matrix[i][j]:.3f}" for j in range(len(names)))
             f.write(f"{name[:10]:<10} {row}\n")
 
-def main(file_names):
+
+if __name__ == "__main__":
     codon_freqs = []
     dicodon_freqs = []
     data_dir = os.path.join(BASE_DIR, "data")
-    for filename in file_names:
+    for filename in FILES:
         file_path = os.path.join(data_dir, f"{filename}.fasta")
         sequences = read_file(file_path)
         all_orfs = []
@@ -169,7 +153,7 @@ def main(file_names):
                 orfs = find_orfs(s)
                 all_orfs.extend(orfs)
 
-        proteins = [translate_dna(orf) for orf in all_orfs if len(orf) >= 100]
+        proteins = [convert_to_protein_sequence(orf) for orf in all_orfs]
         combined_protein = ''.join(proteins)
 
         cf = codon_frequencies(combined_protein)
@@ -177,26 +161,11 @@ def main(file_names):
         codon_freqs.append(cf)
         dicodon_freqs.append(df)
 
-    codon_matrix = build_distance_matrix(file_names, codon_freqs)
-    dicodon_matrix = build_distance_matrix(file_names, dicodon_freqs)
+    codon_matrix = create_distance_matrix(len(FILES), codon_freqs)
+    dicodon_matrix = create_distance_matrix(len(FILES), dicodon_freqs)
 
     results_dir = os.path.join(BASE_DIR, "results")
     os.makedirs(results_dir, exist_ok=True)
 
-    save_to_file(os.path.join(results_dir, "codon_distance.phy"), file_names, codon_matrix)
-    save_to_file(os.path.join(results_dir, "dicodon_distance.phy"), file_names, dicodon_matrix)
-
-
-if __name__ == "__main__":
-    files = [
-        "mamalian1",
-        "mamalian2",
-        "mamalian3",
-        "mamalian4",
-        "bacterial1",
-        "bacterial2",
-        "bacterial3",
-        "bacterial4"
-    ]
-    main(files)
-    print("Finished")
+    save_to_file(os.path.join(results_dir, "codon_distance.phy"), FILES, codon_matrix)
+    save_to_file(os.path.join(results_dir, "dicodon_distance.phy"), FILES, dicodon_matrix)
