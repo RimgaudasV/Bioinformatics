@@ -57,8 +57,8 @@ def reverse_complement(seq):
     return seq.translate(complement)[::-1]
 
 
-# 1-3
-def find_orfs(seq, min_len=100):
+# 1-2
+def find_orfs(seq):
     orfs = []
     for frame in range(3):
         start_pos = None
@@ -71,11 +71,14 @@ def find_orfs(seq, min_len=100):
 
             elif codon in STOP_CODONS and start_pos is not None:
                 orf_seq = seq[start_pos:i+3]
-                if len(orf_seq) >= min_len:
-                    orfs.append(orf_seq)
+                orfs.append(orf_seq)
                 start_pos = None
 
     return orfs
+
+# 3
+def filter_orfs(unfiltered_orfs, min_length=100):
+    return [orf for orf in unfiltered_orfs if len(orf) >= min_length]
 
 
 # 4
@@ -150,7 +153,8 @@ if __name__ == "__main__":
 
         for seq in sequences:
             for s in [seq, reverse_complement(seq)]:
-                orfs = find_orfs(s)
+                unfiltered_orfs = find_orfs(s)
+                orfs = filter_orfs(unfiltered_orfs)
                 all_orfs.extend(orfs)
 
         proteins = [convert_to_protein_sequence(orf) for orf in all_orfs]
